@@ -1,0 +1,97 @@
+import static com.kms.katalon.core.checkpoint.CheckpointFactory.findCheckpoint
+import static com.kms.katalon.core.testcase.TestCaseFactory.findTestCase
+import static com.kms.katalon.core.testdata.TestDataFactory.findTestData
+import static com.kms.katalon.core.testobject.ObjectRepository.findTestObject
+import com.kms.katalon.core.checkpoint.Checkpoint as Checkpoint
+import com.kms.katalon.core.cucumber.keyword.CucumberBuiltinKeywords as CucumberKW
+import com.kms.katalon.core.mobile.keyword.MobileBuiltInKeywords as Mobile
+import com.kms.katalon.core.model.FailureHandling as FailureHandling
+import com.kms.katalon.core.testcase.TestCase as TestCase
+import com.kms.katalon.core.testdata.TestData as TestData
+import com.kms.katalon.core.testobject.TestObject as TestObject
+import com.kms.katalon.core.webservice.keyword.WSBuiltInKeywords as WS
+import com.kms.katalon.core.webui.keyword.WebUiBuiltInKeywords as WebUI
+import com.kms.katalon.core.webui.driver.DriverFactory as DriverFactory
+import com.kms.katalon.core.webservice.keyword.WSBuiltInKeywords as WSBuiltInKeywords
+import com.kms.katalon.core.testobject.ResponseObject as ResponseObject
+import com.kms.katalon.core.testobject.RequestObject as RequestObject
+import net.lightbody.bmp.BrowserMobProxy as BrowserMobProxy
+import net.lightbody.bmp.BrowserMobProxyServer as BrowserMobProxyServer
+import net.lightbody.bmp.client.ClientUtil as ClientUtil
+import net.lightbody.bmp.core.har.Har as Har
+import net.lightbody.bmp.proxy.CaptureType as CaptureType
+import groovy.json.JsonSlurper as JsonSlurper
+import org.openqa.selenium.remote.CapabilityType as CapabilityType
+import org.openqa.selenium.remote.DesiredCapabilities as DesiredCapabilities
+import org.openqa.selenium.Proxy as Proxy
+import org.openqa.selenium.WebDriver as WebDriver
+import org.openqa.selenium.chrome.ChromeDriver as ChromeDriver
+import org.openqa.selenium.chrome.ChromeOptions as ChromeOptions
+import internal.GlobalVariable as GlobalVariable
+
+/**
+ * run this test case in chrome.
+ */
+WebUI.closeBrowser()
+
+System.setProperty('webdriver.chrome.driver', DriverFactory.chromeDriverPath)
+
+BrowserMobProxy proxy = new BrowserMobProxyServer()
+
+proxy.start(8088)
+
+DesiredCapabilities caps
+
+WebDriver driver
+
+ChromeOptions option = new ChromeOptions()
+
+proxy.enableHarCaptureTypes(CaptureType.REQUEST_CONTENT)
+
+// get the Selenium proxy object
+Proxy seleniumProxy = ClientUtil.createSeleniumProxy(proxy)
+
+caps = new DesiredCapabilities()
+
+caps.setCapability(CapabilityType.PROXY, seleniumProxy)
+
+caps.setBrowserName('chrome')
+
+option.merge(caps)
+
+proxy.newHar('proxyServer')
+
+option.addArguments("--headless", "--disable-gpu", "--window-size=1920,1200","--ignore-certificate-errors");
+
+driver = new ChromeDriver(option)
+
+driver.get('https://www.test.com')
+
+DriverFactory.changeWebDriver(driver)
+
+WebUI.delay(2)
+
+WebUI.callTestCase(findTestCase('testcase_file_location'), [:], FailureHandling.STOP_ON_FAILURE)
+
+Har har = proxy.getHar()
+
+File harfile = new File('Data Files/network.har')
+
+har.writeTo(harfile)
+
+def jsonSlurper = new JsonSlurper()
+
+def data = jsonSlurper.parse(new FileReader(harfile))
+
+data.log.entries.each({ def entry ->
+    def request = entry.request
+
+    if (request) {
+        URL url = new URL(request.url)
+		
+		println(url)
+		
+    }
+})
+
+proxy.stop()
